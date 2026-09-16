@@ -1,15 +1,13 @@
-export const command = `top -l 1 | grep "CPU usage"; echo "---CPUP---"; ps -Ao pcpu,comm -r | sed -n '2,7p'; echo "---MEMD---"; sysctl -n hw.memsize; echo "---MEMP---"; memory_pressure | grep "free percentage"; echo "---MEMPROC---"; ps -Ao rss,comm -m | sed -n '2,7p'; echo "---DFD---"; df -H / | tail -1; echo "---DU---"; du -d 1 -h ~ 2>/dev/null | sort -rh | head -6`;
+export const command = `top -l 1 | grep "CPU usage"; echo "---CPUP---"; ps -Ao pcpu,comm -r | sed -n '2,7p'; echo "---MEMD---"; sysctl -n hw.memsize; echo "---MEMP---"; memory_pressure | grep "free percentage"; echo "---MEMPROC---"; ps -Ao rss,comm -m | sed -n '2,7p'`;
 
-// Combined widget refreshes every 15s. The disk section scans your home
-// folder each time, which is heavier than a plain CPU/RAM read, so this is
-// a balance between "live" and "not chewing through CPU on its own".
-export const refreshFrequency = 15000;
+// No more disk scan in this widget, so it can refresh quickly again.
+export const refreshFrequency = 2000;
 
 export const className = `
   top: 20px;
   right: 20px;
   left: auto;
-  width: 280px;
+  width: 320px;
   font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
   color: #e8e8e8;
   background: rgba(10, 10, 10, 0.85);
@@ -138,7 +136,7 @@ export const className = `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 175px;
+    max-width: 500px;
   }
 
   .row-val {
@@ -164,8 +162,7 @@ export const render = ({ output }) => {
   const [cpuProcBlock = "", r2 = ""] = r1.split("---MEMD---");
   const [memsizeBlock = "", r3 = ""] = r2.split("---MEMP---");
   const [pressureLine = "", r4 = ""] = r3.split("---MEMPROC---");
-  const [memProcBlock = "", r5 = ""] = r4.split("---DFD---");
-  const [dfLine = "", duBlock = ""] = r5.split("---DU---");
+  const memProcBlock = r4;
 
   // --- CPU ---
   const cpuMatch = cpuSummary.match(/([\d.]+)% user, ([\d.]+)% sys, ([\d.]+)% idle/);
@@ -203,25 +200,6 @@ export const render = ({ output }) => {
       if (i === -1) return { mb: "0", name: t };
       const rssKb = parseInt(t.slice(0, i), 10) || 0;
       return { mb: Math.round(rssKb / 1024), name: t.slice(i).trim() };
-    });
-
-  // --- Disk ---
-  const cols = dfLine.trim().split(/\s+/);
-  const diskSize = cols[1] || "--";
-  const diskUsed = cols[2] || "--";
-  const diskAvail = cols[3] || "--";
-  const diskPct = parseFloat((cols[4] || "0").replace("%", "")) || 0;
-
-  const folders = duBlock
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .slice(0, 6)
-    .map((line) => {
-      const parts = line.trim().split(/\s+/);
-      const folderSize = parts[0];
-      const path = parts.slice(1).join(" ");
-      return { folderSize, name: path.split("/").pop() || path };
     });
 
   return (
@@ -272,29 +250,6 @@ export const render = ({ output }) => {
             <div className="row" key={i}>
               <span className="row-name">{p.name}</span>
               <span className="row-val">{p.mb} MB</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="section">
-        <div className="section-header">
-          <span className="section-label">Disk</span>
-          <span className="section-sub">
-            {diskUsed} used<br />
-            {diskAvail} free
-          </span>
-        </div>
-        <div className="section-value">{diskPct}%</div>
-        <div className="bar-track">
-          <div className="bar-fill" style={{ width: `${diskPct}%` }} />
-        </div>
-        <div className="details">
-          <div className="details-title">Largest in Home ({diskSize} total)</div>
-          {folders.map((f, i) => (
-            <div className="row" key={i}>
-              <span className="row-name">{f.name}</span>
-              <span className="row-val">{f.folderSize}</span>
             </div>
           ))}
         </div>
